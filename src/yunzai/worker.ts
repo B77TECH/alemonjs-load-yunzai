@@ -14,6 +14,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createOneBotRuntime, isOneBotPlatform } from './adapters/onebot-icqq';
+import { getCrossPlatformGroupId } from './identity';
+import type { GroupId } from './identity';
 import { installPluginFaultBoundary, protectPluginAcceptHandlers } from './plugin-faults';
 import { installPluginEventCompatibility } from './plugin-events';
 import { decodeCommandError, decodeCommandOutput, installWindowsCommandDecoding, repairWindowsCommandPath } from './command-output';
@@ -449,13 +451,13 @@ function injectGlobals(): void {
       }),
 
     pickFriend: (uid: number) => makeFriendProxy(uid, ''),
-    pickGroup: (gid: number) => makeGroupProxy(gid),
+    pickGroup: (gid: GroupId) => makeGroupProxy(gid),
     pickUser: (uid: number) => makeFriendProxy(uid, ''),
     /** 快捷获取群成员（等效 pickGroup(gid).pickMember(uid)） */
-    pickMember: (gid: number, uid: number) => makeGroupProxy(gid).pickMember(uid),
+    pickMember: (gid: GroupId, uid: number) => makeGroupProxy(gid).pickMember(uid),
 
     /** 发送群消息（部分插件直接调用 Bot.sendGroupMsg） */
-    sendGroupMsg: async (gid: number, msg: any) => {
+    sendGroupMsg: async (gid: GroupId, msg: any) => {
       const contents = await serializeReply(msg);
 
       return callApi('sendGroupMsg', { group_id: gid, contents });
@@ -618,7 +620,7 @@ function injectGlobals(): void {
         .catch(() => ({ user_id: botInstance.uin, nickname: botInstance.nickname })),
 
     /** 获取群成员列表（同时填充 gml 缓存） */
-    getGroupMemberList: (gid: number) => callApi('getGroupMemberList', { group_id: gid })
+    getGroupMemberList: (gid: GroupId) => callApi('getGroupMemberList', { group_id: gid })
         .then((res: any) => {
           if (res?.data && Array.isArray(res.data)) {
             const map = new Map();
@@ -636,7 +638,7 @@ function injectGlobals(): void {
         .catch(() => botInstance.gml.get(gid) ?? new Map()),
 
     /** 获取群成员信息 */
-    getGroupMemberInfo: (gid: number, uid: number) => callApi('getGroupMemberInfo', { group_id: gid, user_id: uid }).catch(() => ({})),
+    getGroupMemberInfo: (gid: GroupId, uid: number) => callApi('getGroupMemberInfo', { group_id: gid, user_id: uid }).catch(() => ({})),
 
     /** 获取转发消息（miao-plugin / ZZZ-Plugin 使用） */
     getForwardMsg: (resId: string) => callApi('getForwardMsg', { id: resId }).catch(() => ({ message: [] })),
@@ -1258,7 +1260,7 @@ function safeInt(v: any, fallback: number): number {
  * @param groupId 群号
  * @param opts 可选初始信息（从 raw event 中提取）
  */
-function makeGroupProxy(groupId: number, opts?: { name?: string; is_owner?: boolean; is_admin?: boolean }) {
+function makeGroupProxy(groupId: GroupId, opts?: { name?: string; is_owner?: boolean; is_admin?: boolean }) {
   return oneBotRuntime.createOneBotGroupAdapter(groupId, opts);
 }
 
@@ -1308,7 +1310,7 @@ function buildFallbackNonMessageEvent(
   eventName: string
 ) {
   const userId = safeInt(data.userId, 10001);
-  const groupId = data.isPrivate ? 0 : safeInt(data.spaceId, 0);
+  const groupId = getCrossPlatformGroupId(data.spaceId, data.isPrivate);
   const masterFlag = resolveMasterFlag(data);
 
   const e: any = {
@@ -1511,7 +1513,7 @@ function buildEvent(data: IPCEventMessage['data'], msgId: string) {
   // ══════════════════════════════════════════
   const isGroup = !data.isPrivate;
   const userId = safeInt(data.userId, 10001);
-  const groupId = isGroup ? safeInt(data.spaceId, 10002) : 0;
+  const groupId = getCrossPlatformGroupId(data.spaceId, !isGroup);
 
   // 构建消息段：文本 + 跨平台 at 段 + 跨平台媒体附件
   const messageParts: any[] = [];

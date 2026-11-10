@@ -1,3 +1,4 @@
+import type { GroupId } from '../identity';
 import type { IPCEventMessage, ReplyContent } from '../protocol';
 import { normalizeOneBotMessageId, requireOneBotUserId } from '../query-params';
 import { OneBotWebCredentials } from '../web-credentials';
@@ -52,19 +53,19 @@ export function createOneBotRuntime(deps: {
 }) {
   const { callApi, serializeReply, wrapCompatValue, safeInt, resolveMasterFlag, buildForwardMsgCompat } = deps;
   const MAX_CACHED_GROUPS = 50;
-  const memberCache = new Map<number, Map<number, any>>();
-  const memberCacheAccess = new Map<number, number>();
+  const memberCache = new Map<GroupId, Map<number, any>>();
+  const memberCacheAccess = new Map<GroupId, number>();
   let botState: OneBotBotState | null = null;
   const webCredentials = new OneBotWebCredentials(callApi, deps.currentBotId ?? (() => String(botState?.uin ?? '')));
 
-  function touchMemberCache(groupId: number): void {
+  function touchMemberCache(groupId: GroupId): void {
     memberCacheAccess.set(groupId, Date.now());
 
     if (memberCache.size <= MAX_CACHED_GROUPS) {
       return;
     }
 
-    let oldestId = -1;
+    let oldestId: GroupId | undefined;
     let oldestTime = Infinity;
 
     for (const [gid, time] of memberCacheAccess) {
@@ -74,7 +75,7 @@ export function createOneBotRuntime(deps: {
       }
     }
 
-    if (oldestId >= 0) {
+    if (oldestId !== undefined) {
       memberCache.delete(oldestId);
       memberCacheAccess.delete(oldestId);
     }
@@ -120,7 +121,7 @@ export function createOneBotRuntime(deps: {
     };
   }
 
-  function getCachedGroupRecord(groupId: number, opts?: OneBotGroupOptions) {
+  function getCachedGroupRecord(groupId: GroupId, opts?: OneBotGroupOptions) {
     const cached = botState?.gl?.get(groupId);
 
     return normalizeGroupRecord({
@@ -130,7 +131,7 @@ export function createOneBotRuntime(deps: {
     });
   }
 
-  function cacheGroupRecord(groupId: number, group: any, opts?: OneBotGroupOptions) {
+  function cacheGroupRecord(groupId: GroupId, group: any, opts?: OneBotGroupOptions) {
     const definedGroup = Object.fromEntries(Object.entries(group ?? {}).filter(([, value]) => value !== undefined));
     const normalized = normalizeGroupRecord({
       ...getCachedGroupRecord(groupId, opts),
@@ -143,11 +144,11 @@ export function createOneBotRuntime(deps: {
     return normalized;
   }
 
-  function getCachedMemberRecord(groupId: number, userId: number) {
+  function getCachedMemberRecord(groupId: GroupId, userId: number) {
     return normalizeMemberRecord(memberCache.get(groupId)?.get(userId) ?? botState?.gml?.get(groupId)?.get(userId) ?? { user_id: userId });
   }
 
-  function cacheMemberRecord(groupId: number, userId: number, member: any) {
+  function cacheMemberRecord(groupId: GroupId, userId: number, member: any) {
     const normalized = normalizeMemberRecord({ ...getCachedMemberRecord(groupId, userId), ...member, user_id: userId });
     let members = memberCache.get(groupId) ?? botState?.gml?.get(groupId);
 
@@ -160,12 +161,12 @@ export function createOneBotRuntime(deps: {
     return normalized;
   }
 
-  function removeCachedMember(groupId: number, userId: number): void {
+  function removeCachedMember(groupId: GroupId, userId: number): void {
     memberCache.get(groupId)?.delete(userId);
     botState?.gml?.get(groupId)?.delete(userId);
   }
 
-  function fetchMemberRecord(groupId: number, userId: number, noCache = false) {
+  function fetchMemberRecord(groupId: GroupId, userId: number, noCache = false) {
     const cached = getCachedMemberRecord(groupId, userId);
 
     return callApi('getGroupMemberInfo', { group_id: groupId, user_id: userId, ...(noCache ? { no_cache: true } : {}) })
@@ -341,7 +342,7 @@ export function createOneBotRuntime(deps: {
     return messages.map(normalizeMessage).filter(Boolean);
   }
 
-  function createOneBotGroupAdapter(groupId: number, opts?: OneBotGroupOptions) {
+  function createOneBotGroupAdapter(groupId: GroupId, opts?: OneBotGroupOptions) {
     return wrapCompatValue(
       {
         group_id: groupId,
@@ -585,7 +586,7 @@ export function createOneBotRuntime(deps: {
           return currentFriend().class_name ?? '';
         },
         asFriend: () => createOneBotFriendAdapter(userId, userName),
-        asMember: (gid: number) => createOneBotGroupAdapter(gid).pickMember(userId),
+        asMember: (gid: GroupId) => createOneBotGroupAdapter(gid).pickMember(userId),
         getMsg: async (messageId: number | string) => normalizeMessage(await callApi('getMsg', { message_id: normalizeOneBotMessageId(messageId) })),
         sendMsg: async (msg: any) => {
           const contents = await serializeReply(msg);
@@ -616,8 +617,8 @@ export function createOneBotRuntime(deps: {
         setClass: (id: number) => callApi('_set_friend_class', { user_id: userId, class_id: id }).catch(() => {}),
         addFriendBack: (seq: number, remark = '') => callApi('setFriendAddRequest', { flag: String(seq), approve: true, remark }).catch(() => false),
         setFriendReq: (seq: number, yes = true, remark = '') => callApi('setFriendAddRequest', { flag: String(seq), approve: yes, remark }).catch(() => false),
-        setGroupReq: (_gid: number, seq: number, yes = true, reason = '') => callApi('setGroupAddRequest', { flag: String(seq), approve: yes, reason, type: 'add' }).catch(() => false),
-        setGroupInvite: (_gid: number, seq: number, yes = true) => callApi('setGroupAddRequest', { flag: String(seq), approve: yes, type: 'invite' }).catch(() => false),
+        setGroupReq: (_gid: GroupId, seq: number, yes = true, reason = '') => callApi('setGroupAddRequest', { flag: String(seq), approve: yes, reason, type: 'add' }).catch(() => false),
+        setGroupInvite: (_gid: GroupId, seq: number, yes = true) => callApi('setGroupAddRequest', { flag: String(seq), approve: yes, type: 'invite' }).catch(() => false),
         getSimpleInfo: () => callApi('getStrangerInfo', { user_id: userId })
             .then((res: any) => res?.data ?? res ?? {})
             .catch(() => ({})),
@@ -640,10 +641,10 @@ export function createOneBotRuntime(deps: {
       getFriendMap: () => state.fl,
       getGroupMap: () => state.gl,
       pickFriend: (uid: number) => createOneBotFriendAdapter(uid, ''),
-      pickGroup: (gid: number) => createOneBotGroupAdapter(gid),
+      pickGroup: (gid: GroupId) => createOneBotGroupAdapter(gid),
       pickUser: (uid: number) => createOneBotFriendAdapter(uid, ''),
-      pickMember: (gid: number, uid: number) => createOneBotGroupAdapter(gid).pickMember(uid),
-      sendGroupMsg: async (a: number, b: any, c?: any) => {
+      pickMember: (gid: GroupId, uid: number) => createOneBotGroupAdapter(gid).pickMember(uid),
+      sendGroupMsg: async (a: GroupId, b: any, c?: any) => {
         const gid = c === undefined ? a : b;
         const contents = await serializeReply(c === undefined ? b : c);
 
@@ -703,7 +704,7 @@ export function createOneBotRuntime(deps: {
             return { user_id: state.uin, nickname: state.nickname };
           })
           .catch(() => ({ user_id: state.uin, nickname: state.nickname })),
-      getGroupMemberList: (gid: number) => callApi('getGroupMemberList', { group_id: gid })
+      getGroupMemberList: (gid: GroupId) => callApi('getGroupMemberList', { group_id: gid })
           .then((res: any) => {
             if (res?.data && Array.isArray(res.data)) {
               const map = new Map();
@@ -723,7 +724,7 @@ export function createOneBotRuntime(deps: {
             return state.gml.get(gid) ?? memberCache.get(gid) ?? new Map();
           })
           .catch(() => state.gml.get(gid) ?? memberCache.get(gid) ?? new Map()),
-      getGroupMemberInfo: (gid: number, uid: number) => callApi('getGroupMemberInfo', { group_id: gid, user_id: uid })
+      getGroupMemberInfo: (gid: GroupId, uid: number) => callApi('getGroupMemberInfo', { group_id: gid, user_id: uid })
           .then((res: any) => normalizeMemberRecord(res?.data ?? {}))
           .catch(() => ({})),
       getForwardMsg: (resId: string) => callApi('getForwardMsg', { id: resId })
