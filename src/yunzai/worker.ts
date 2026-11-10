@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { createOneBotRuntime, isOneBotPlatform } from './adapters/onebot-icqq';
 import { getCrossPlatformGroupId } from './identity';
 import type { GroupId } from './identity';
+import { buildMentionSegments } from './mentions';
 import { installConfigCompatibility } from './config-compat';
 import { detectYunzaiVariant, readYunzaiPackage } from './variant';
 import { installPluginFaultBoundary, protectPluginAcceptHandlers } from './plugin-faults';
@@ -1507,13 +1508,7 @@ function buildEvent(data: IPCEventMessage['data'], msgId: string) {
     messageParts.push({ type: 'text', text: data.messageText });
   }
   // 注入跨平台 at 段（来自 bridge 提取的 atUsers）
-  if (Array.isArray(data.atUsers)) {
-    for (const u of data.atUsers) {
-      const uid = safeInt(u.userId, 0);
-
-      messageParts.push({ type: 'at', qq: uid || u.userId, text: u.userName ?? '' });
-    }
-  }
+  messageParts.push(...buildMentionSegments(data.atUsers, selfId, data.isAtMe));
   messageParts.push(...mediaToSegments(data.media));
   if (messageParts.length === 0) {
     messageParts.push({ type: 'text', text: '' });
@@ -1548,7 +1543,7 @@ function buildEvent(data: IPCEventMessage['data'], msgId: string) {
     time: Math.floor(Date.now() / 1000),
     self_id: selfId,
     font: '',
-    atme: detectAtMe(messageParts, selfId),
+    atme: data.isAtMe === true || detectAtMe(messageParts, selfId),
     atall: detectAtAll(messageParts),
 
     // ── at 目标预填（dealMsg 会覆盖，此处作为兜底） ──

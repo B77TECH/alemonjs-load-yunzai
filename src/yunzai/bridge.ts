@@ -30,6 +30,7 @@ import { join } from 'node:path';
 import { getYunzaiEventConcurrency } from '../path';
 import { materialErrorCode, QQMaterialCache } from './qq-material-cache';
 import { WorkerEventQueue } from './event-queue';
+import { extractMentionInfo } from './mentions';
 import { createOneBotClientCompat, normalizeWorkerApiResult, toOneBotApiResponse } from './api-result';
 import type { NativeForwardTarget } from './forward';
 import {
@@ -1306,35 +1307,6 @@ function extractRawEvent(event: any, rawE: any): any {
   return undefined;
 }
 
-/**
- * 从 AlemonJS 事件中提取 @提及的用户列表
- * 用于跨平台（无 rawEvent）时在 Worker 侧构建 at 消息段
- * 优先从 value.message（OneBot 消息段）中提取
- */
-function extractAtUsers(event: any): { userId: string; userName?: string }[] {
-  const users: { userId: string; userName?: string }[] = [];
-
-  try {
-    const v = event.value;
-
-    if (v && Array.isArray(v.message)) {
-      for (const seg of v.message) {
-        if (seg?.type === 'at') {
-          const qq = seg.data?.qq ?? seg.qq;
-
-          if (qq !== null && qq !== undefined && qq !== 'all') {
-            users.push({ userId: String(qq), userName: seg.data?.text ?? seg.text ?? '' });
-          }
-        }
-      }
-    }
-  } catch {
-    // 提取失败时静默忽略
-  }
-
-  return users;
-}
-
 /** 将事件送入 Worker；仅由 load 层队列在获得槽位后调用。 */
 function dispatchEventToWorker(id: string, e: EventsEnum): void {
   // 按 msgId 精确存储事件引用（解决同平台并发消息上下文错乱）
@@ -1353,7 +1325,7 @@ function dispatchEventToWorker(id: string, e: EventsEnum): void {
   });
 
   // 转发给 Worker — 提取所有 AlemonJS 标准字段
-  const atUsers = extractAtUsers(e);
+  const { atUsers, isAtMe } = extractMentionInfo(e);
   const rawEvent = extractRawEvent(e, e);
   const interactionId = e.InteractionId ?? e.interactionId ?? '';
   const interactionData = e.InteractionData ?? e.interactionData;
@@ -1376,6 +1348,7 @@ function dispatchEventToWorker(id: string, e: EventsEnum): void {
       isPrivate: !e.GuildId,
       isMaster: e.IsMaster ?? false,
       IsMaster: e.IsMaster ?? false,
+      isAtMe,
       atUsers,
       interactionId: interactionId ? String(interactionId) : undefined,
       interactionData,
