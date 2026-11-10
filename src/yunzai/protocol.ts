@@ -58,7 +58,9 @@ export interface IPCEventMessage {
 
     // ── @提及信息（跨平台提取，无 rawEvent 时用于构建 at 段） ──
     /** 被@的用户列表 */
-    atUsers?: { userId: string; userName?: string }[];
+    atUsers?: import('./mentions').MentionUser[];
+    /** Explicit adapter flag; bot IDs can differ from their mention identities. */
+    isAtMe?: boolean;
     /** AlemonJS 交互回执 ID */
     interactionId?: string;
     /** 平台交互数据，QQ Bot 通常为 JSON 字符串 */

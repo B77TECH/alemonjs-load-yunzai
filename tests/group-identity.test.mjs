@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getCrossPlatformGroupId } from '../lib/yunzai/identity.js';
 import { createOneBotRuntime } from '../lib/yunzai/adapters/onebot-icqq.js';
+import { buildMentionSegments } from '../lib/yunzai/mentions.js';
 
 function createRuntimeMock(overrides = {}) {
   const apiCalls = [];
@@ -83,6 +84,7 @@ test('actual Worker message and notice builders retain the original group ID', (
   const { runtime } = createRuntimeMock();
   const context = vm.createContext({
     getCrossPlatformGroupId,
+    buildMentionSegments,
     Bot: { uin: 1905580325 },
     isOneBotPlatform: platform => platform === 'onebot',
     decorateEvent: event => event,
