@@ -16,6 +16,8 @@ import { pathToFileURL } from 'node:url';
 import { createOneBotRuntime, isOneBotPlatform } from './adapters/onebot-icqq';
 import { getCrossPlatformGroupId } from './identity';
 import type { GroupId } from './identity';
+import { installConfigCompatibility } from './config-compat';
+import { detectYunzaiVariant, readYunzaiPackage } from './variant';
 import { installPluginFaultBoundary, protectPluginAcceptHandlers } from './plugin-faults';
 import { installPluginEventCompatibility } from './plugin-events';
 import { decodeCommandError, decodeCommandOutput, installWindowsCommandDecoding, repairWindowsCommandPath } from './command-output';
@@ -215,7 +217,6 @@ function warnCompatMissing(kind: 'get' | 'call' | 'construct', label: string): v
 }
 
 const wrapCompatValue = createCompatValueWrapper(warnCompatMissing);
-const compatibleConfigs = new WeakSet<object>();
 
 /**
  * 加载 Yunzai 目录中可用的 icqq/oicq 核心工具。
@@ -1418,22 +1419,6 @@ function injectMasterQQ(userId: number | string): void {
   }
 }
 
-/** 兼容 TRSS 的 cfg.getGroup(selfId, groupId) 调用签名。 */
-function installConfigCompatibility(cfg: any): void {
-  if (!cfg || typeof cfg.getGroup !== 'function' || compatibleConfigs.has(cfg)) {
-    return;
-  }
-
-  try {
-    const getGroup = cfg.getGroup.bind(cfg);
-
-    cfg.getGroup = (first: any, second?: any, ...rest: any[]) => getGroup(second === undefined ? first : second, ...rest);
-    compatibleConfigs.add(cfg);
-  } catch {
-    log('warn', '[compat] cfg.getGroup 不可注入双参数兼容');
-  }
-}
-
 function resolveMasterFlag(data: IPCEventMessage['data']): boolean {
   return data.isMaster ?? data.IsMaster ?? false;
 }
@@ -1919,7 +1904,7 @@ async function main(): Promise<void> {
       const cfg = cfgMod.default ?? cfgMod.cfg;
 
       if (cfg) {
-        installConfigCompatibility(cfg);
+        installConfigCompatibility(cfg, detectYunzaiVariant(readYunzaiPackage(cwd)), message => log('warn', message));
         // 保存 cfg 引用供后续新增 master 时注入
         (globalThis as any)._yunzaiCfg = cfg;
         log('info', `Cfg 实例已获取，当前 masterQQ: [${cfg.masterQQ}]`);
