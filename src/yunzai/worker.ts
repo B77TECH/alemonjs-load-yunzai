@@ -973,6 +973,7 @@ function injectGlobals(): void {
 // ━━━━━━━━━━━━━━━ 合并转发消息构建 ━━━━━━━━━━━━━━━
 
 const oneBotRuntime = createOneBotRuntime({
+  currentPlatform: () => getExecutionContext()?.platform,
   currentBotId: () => getExecutionContext()?.botId ?? String((globalThis as any).Bot?.uin ?? ''),
   callApi,
   serializeReply,
@@ -1970,16 +1971,17 @@ async function main(): Promise<void> {
             (globalThis as any).Bot.stat.recv_msg_cnt++;
           }
 
-          const e = buildEvent(msg.data, msg.id);
           let replied = false;
-          const origReply = e.reply;
-
-          e.reply = (m: any, q = false) => {
-            replied = true;
-
-            return origReply(m, q);
-          };
           try {
+            const e = buildEvent(msg.data, msg.id);
+            const origReply = e.reply;
+
+            e.reply = (m: any, q = false) => {
+              replied = true;
+
+              return origReply(m, q);
+            };
+
             // 拦截 Yunzai 内部的重启/关机/更新指令
             const rawMsg = String(e.msg ?? '').trim();
 
