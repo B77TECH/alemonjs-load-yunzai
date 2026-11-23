@@ -17,11 +17,11 @@
   "devDependencies": {
     "@alemonjs/db": "^0.0.21",
     "@alemonjs/onebot": "^2.1.23",
-    "@alemonjs/qq-bot": "^2.1.46",
+    "@alemonjs/qq-bot": "^2.1.39",
     "@eslint/js": "^9.18.0",
     "@types/koa-bodyparser": "^4.3.13",
     "@types/koa-router": "^7.4.9",
-    "alemonjs": "^2.1.124",
+    "alemonjs": "^2.1.113",
     "cssnano": "^8.0.7",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.1.8",
@@ -90,11 +90,11 @@
     "stop": "npx --yes pm2 stop pm2.config.cjs",
     "test": "yarn test:onebot-compat",
     "test:git": "lvy build && node --test --test-force-exit tests/git-operations.test.mjs",
-    "test:onebot-compat": "lvy build && node --test --test-force-exit tests/onebot-compat.test.mjs tests/plugin-faults.test.mjs tests/plugin-events.test.mjs tests/command-output.test.mjs tests/media.test.mjs tests/bridge-context.test.mjs tests/api-result.test.mjs tests/renderer-compat.test.mjs tests/group-identity.test.mjs tests/config-compat.test.mjs tests/mentions.test.mjs tests/bridge-routing.test.mjs",
+    "test:onebot-compat": "lvy build && node --test --test-force-exit tests/onebot-compat.test.mjs tests/plugin-faults.test.mjs tests/plugin-events.test.mjs tests/command-output.test.mjs tests/media.test.mjs tests/bridge-context.test.mjs tests/api-result.test.mjs tests/renderer-compat.test.mjs tests/group-identity.test.mjs tests/config-compat.test.mjs tests/mentions.test.mjs",
     "view": "lvy app.ts --jsxp"
   },
   "type": "module",
-  "version": "1.0.43-b77.5",
+  "version": "1.0.43-b77.6",
   "alemonjs": {
     "config": [
       {

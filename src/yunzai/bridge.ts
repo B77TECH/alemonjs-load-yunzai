@@ -1392,6 +1392,6 @@ export default (e: EventsEnum, next: Next) => {
 
   workerEventQueue.setConcurrency(getYunzaiEventConcurrency());
   workerEventQueue.enqueue(id, () => dispatchEventToWorker(id, e));
-  // Forwarding to Yunzai must not consume other AlemonJS plugins' routes.
+  // Allow other AlemonJS plugins to receive the forwarded event.
   next();
 };

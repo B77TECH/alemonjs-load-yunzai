@@ -11,7 +11,6 @@ function createRuntimeMock(overrides = {}) {
   const apiCalls = [];
   const apiMap = new Map(Object.entries(overrides.api ?? {}));
   const runtime = createOneBotRuntime({
-    currentPlatform: overrides.currentPlatform,
     callApi: async (action, params = {}) => {
       apiCalls.push({ action, params });
       if (apiMap.has(action)) {
@@ -76,13 +75,13 @@ test('shared group adapter preserves numeric OneBot group IDs', async () => {
 
 test('actual Worker message and notice builders retain the original group ID', () => {
   const source = readFileSync(new URL('../src/yunzai/worker.ts', import.meta.url), 'utf8');
-  const names = ['safeInt', 'preserveId', 'isMessageEventName', 'resolveMasterFlag', 'buildFallbackNonMessageEvent', 'buildEvent'];
+  const names = ['safeInt', 'isMessageEventName', 'resolveMasterFlag', 'buildFallbackNonMessageEvent', 'buildEvent'];
   const functions = names.map(name => {
     const match = source.match(new RegExp(String.raw`^function ${name}\b[\s\S]*?^}`, 'm'));
     assert.ok(match, name);
     return match[0];
   }).join('\n');
-  const { runtime } = createRuntimeMock({ currentPlatform: () => 'qq-bot' });
+  const { runtime } = createRuntimeMock();
   const context = vm.createContext({
     getCrossPlatformGroupId,
     buildMentionSegments,
@@ -90,7 +89,7 @@ test('actual Worker message and notice builders retain the original group ID', (
     isOneBotPlatform: platform => platform === 'onebot',
     decorateEvent: event => event,
     makeGroupProxy: id => runtime.createOneBotGroupAdapter(id),
-    makeFriendProxy: id => runtime.createOneBotFriendAdapter(id, 'User'),
+    makeFriendProxy: id => ({ user_id: id }),
     mediaToSegments: () => [],
     detectAtMe: () => false,
     detectAtAll: () => false,
@@ -101,28 +100,9 @@ test('actual Worker message and notice builders retain the original group ID', (
   vm.runInContext(stripTypeScriptTypes(functions, { mode: 'transform' }), context);
   const id = '411FFF510500D0378EB112E37E7393E9';
   const data = { platform: 'qq-bot', botId: '1905580325', userId: '12345', spaceId: id, isPrivate: false, messageText: '#开启资讯推送' };
-  for (const eventName of ['message.create', 'guild.member.add', 'private.message.create', 'friend.add']) {
-    const isPrivate = eventName.startsWith('private.') || eventName === 'friend.add';
-    const event = context.buildEvent({ ...data, eventName, isPrivate, userId: 'USER_OPENID_411FFF' }, 'test-event');
-    assert.equal(event.user_id, 'USER_OPENID_411FFF');
-    if (isPrivate) assert.equal(event.friend.user_id, 'USER_OPENID_411FFF');
-    else { assert.equal(event.group_id, id); assert.equal(event.group.group_id, id); }
+  for (const eventName of ['message.create', 'guild.member.add']) {
+    const event = context.buildEvent({ ...data, eventName }, 'test-event');
+    assert.equal(event.group_id, id);
+    assert.equal(event.group.group_id, id);
   }
-});
-
-
-test('cross-platform friend and member adapters preserve opaque IDs while OneBot remains strict', async () => {
-  let platform = 'qq-bot';
-  const { runtime, apiCalls } = createRuntimeMock({ currentPlatform: () => platform });
-  const id = '411FFF_USER_OPENID';
-  const friend = runtime.createOneBotFriendAdapter(id, 'User');
-  assert.equal(friend.user_id, id);
-  assert.equal(friend.asFriend().user_id, id);
-  await friend.sendMsg('reply');
-  assert.equal(apiCalls.at(-1).params.user_id, id);
-  assert.equal(runtime.createOneBotGroupAdapter('ROOM').pickMember(id).user_id, id);
-  platform = 'onebot';
-  assert.throws(() => runtime.createOneBotFriendAdapter(id, 'User'), /OneBot/);
-  assert.throws(() => runtime.createOneBotGroupAdapter(123).pickMember(id), /OneBot/);
-  assert.equal(runtime.createOneBotFriendAdapter('12345', 'User').user_id, 12345);
 });

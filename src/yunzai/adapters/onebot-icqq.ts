@@ -50,19 +50,9 @@ export function createOneBotRuntime(deps: {
   resolveMasterFlag: ResolveMasterFlag;
   buildForwardMsgCompat: BuildForwardMsgCompat;
   currentBotId?: () => string;
-  currentPlatform?: () => string | undefined;
 }) {
   const { callApi, serializeReply, wrapCompatValue, safeInt, resolveMasterFlag, buildForwardMsgCompat } = deps;
   const MAX_CACHED_GROUPS = 50;
-  // Shared adapters also serve cross-platform events. Only OneBot uses QQ IDs.
-  function requireUserId(value: any): any {
-    const platform = deps.currentPlatform?.();
-    if (!platform || isOneBotPlatform(platform)) return requireOneBotUserId(value);
-    if (value === null || value === undefined || String(value).trim() === '') {
-      throw new Error('无效的跨平台用户 ID');
-    }
-    return value;
-  }
   const memberCache = new Map<GroupId, Map<number, any>>();
   const memberCacheAccess = new Map<GroupId, number>();
   let botState: OneBotBotState | null = null;
@@ -395,7 +385,7 @@ export function createOneBotRuntime(deps: {
             })
             .catch(() => memberCache.get(groupId) ?? botState?.gml?.get(groupId) ?? new Map()),
         pickMember: (uid: number) => {
-          uid = requireUserId(uid);
+          uid = requireOneBotUserId(uid);
           const current = () => getCachedMemberRecord(groupId, uid);
           const updateAfter = (action: string, params: Record<string, any>, patch: Record<string, any> = {}, remove = false) => callApi(action, params)
               .then((result: any) => {
@@ -571,7 +561,7 @@ export function createOneBotRuntime(deps: {
   }
 
   function createOneBotFriendAdapter(userId: number, userName: string) {
-    userId = requireUserId(userId);
+    userId = requireOneBotUserId(userId);
     const currentFriend = () => normalizeFriendRecord(botState?.fl?.get(userId) ?? {});
 
     return wrapCompatValue(
@@ -700,7 +690,7 @@ export function createOneBotRuntime(deps: {
             return state.fl;
           })
           .catch(() => state.fl),
-      getStrangerInfo: (uid: number) => callApi('getStrangerInfo', { user_id: requireUserId(uid) })
+      getStrangerInfo: (uid: number) => callApi('getStrangerInfo', { user_id: requireOneBotUserId(uid) })
           .then((res: any) => res?.data ?? res ?? {})
           .catch(() => ({})),
       getLoginInfo: () => callApi('getLoginInfo')
