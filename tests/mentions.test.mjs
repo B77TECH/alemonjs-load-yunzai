@@ -50,7 +50,7 @@ function worker(data) {
     mediaToSegments: () => [], EVENT_NOTICE_MAP: {}, EVENT_REQUEST_MAP: {}
   });
   vm.runInContext(stripTypeScriptTypes(sourceFunctions('../src/yunzai/worker.ts', [
-    'safeInt', 'detectAtMe', 'detectAtAll', 'extractFirstAtTarget', 'isMessageEventName',
+    'safeInt', 'preserveId', 'detectAtMe', 'detectAtAll', 'extractFirstAtTarget', 'isMessageEventName',
     'resolveMasterFlag', 'buildFallbackNonMessageEvent', 'buildEvent', 'decorateEvent'
   ]), { mode: 'transform' }), context);
   return context.buildEvent(data, 'mention-test');
