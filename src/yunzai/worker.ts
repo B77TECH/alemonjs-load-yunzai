@@ -418,8 +418,7 @@ function injectGlobals(): void {
      * TRSS 插件用于 git/pnpm 等维护命令的执行接口。
      * 即使命令失败也返回完整结果，供调用方读取 error.message 并给出具体提示。
      */
-    exec: (command: string | string[], options: Record<string, unknown> = {}) =>
-      new Promise<CommandResult>(resolve => {
+    exec: (command: string | string[], options: Record<string, unknown> = {}) => new Promise<CommandResult>(resolve => {
         const startedAt = Date.now();
         const displayName = botInstance.String(command);
         const quiet = options.quiet === true;
@@ -572,8 +571,7 @@ function injectGlobals(): void {
     },
 
     /** 获取群列表（填充 gl） */
-    getGroupList: () =>
-      callApi('getGroupList')
+    getGroupList: () => callApi('getGroupList')
         .then((res: any) => {
           if (res?.data && Array.isArray(res.data)) {
             botInstance.gl.clear();
@@ -587,8 +585,7 @@ function injectGlobals(): void {
         .catch(() => botInstance.gl),
 
     /** 获取好友列表（填充 fl） */
-    getFriendList: () =>
-      callApi('getFriendList')
+    getFriendList: () => callApi('getFriendList')
         .then((res: any) => {
           if (res?.data && Array.isArray(res.data)) {
             botInstance.fl.clear();
@@ -613,8 +610,7 @@ function injectGlobals(): void {
     getStrangerInfo: (uid: number) => callApi('getStrangerInfo', { user_id: uid }).catch(() => ({})),
 
     /** 获取登录号信息 */
-    getLoginInfo: () =>
-      callApi('getLoginInfo')
+    getLoginInfo: () => callApi('getLoginInfo')
         .then((res: any) => {
           if (res?.data) {
             botInstance.uin = res.data.UserId ?? res.data.user_id ?? botInstance.uin;
@@ -626,8 +622,7 @@ function injectGlobals(): void {
         .catch(() => ({ user_id: botInstance.uin, nickname: botInstance.nickname })),
 
     /** 获取群成员列表（同时填充 gml 缓存） */
-    getGroupMemberList: (gid: GroupId) =>
-      callApi('getGroupMemberList', { group_id: gid })
+    getGroupMemberList: (gid: GroupId) => callApi('getGroupMemberList', { group_id: gid })
         .then((res: any) => {
           if (res?.data && Array.isArray(res.data)) {
             const map = new Map();
@@ -693,8 +688,7 @@ function injectGlobals(): void {
     setAvatar: (file: any) => callApi('set_qq_avatar', { file: String(file) }).catch(() => false),
 
     /** 获取个性签名 */
-    getSignature: () =>
-      callApi('get_qq_profile')
+    getSignature: () => callApi('get_qq_profile')
         .then((r: any) => r?.data?.signature ?? '')
         .catch(() => ''),
 
@@ -973,7 +967,6 @@ function injectGlobals(): void {
 // ━━━━━━━━━━━━━━━ 合并转发消息构建 ━━━━━━━━━━━━━━━
 
 const oneBotRuntime = createOneBotRuntime({
-  currentPlatform: () => getExecutionContext()?.platform,
   currentBotId: () => getExecutionContext()?.botId ?? String((globalThis as any).Bot?.uin ?? ''),
   callApi,
   serializeReply,
@@ -1255,22 +1248,6 @@ function mediaToSegments(media: IPCEventMessage['data']['media']): any[] {
 }
 
 /** 安全转 number（非 QQ 平台的 userId 可能是非数字字符串） */
-function preserveId(v: any, fallback: number | string): any {
-  if (v === null || v === undefined) return fallback;
-
-  const text = String(v).trim();
-
-  if (!text) return fallback;
-
-  if (/^-?\d+$/.test(text)) {
-    const n = Number(text);
-
-    if (Number.isSafeInteger(n)) return n;
-  }
-
-  return text;
-}
-
 function safeInt(v: any, fallback: number): number {
   const n = parseInt(String(v));
 
@@ -1334,7 +1311,7 @@ function buildFallbackNonMessageEvent(
   reply: (msg: any, quote?: boolean) => any,
   eventName: string
 ) {
-  const userId = preserveId(data.userId, 10001);
+  const userId = safeInt(data.userId, 10001);
   const groupId = getCrossPlatformGroupId(data.spaceId, data.isPrivate);
   const masterFlag = resolveMasterFlag(data);
 
@@ -1369,12 +1346,10 @@ function buildFallbackNonMessageEvent(
     e.sub_type = requestMap.sub_type;
     e.comment = '';
     e.flag = `${eventName}_${Date.now()}`;
-    e.approve = (approve = true) =>
-      callApi(requestMap.request_type === 'friend' ? 'setFriendAddRequest' : 'setGroupAddRequest', { flag: e.flag, approve, type: requestMap.sub_type }).catch(
+    e.approve = (approve = true) => callApi(requestMap.request_type === 'friend' ? 'setFriendAddRequest' : 'setGroupAddRequest', { flag: e.flag, approve, type: requestMap.sub_type }).catch(
         () => false
       );
-    e.reject = (reason = '') =>
-      callApi(requestMap.request_type === 'friend' ? 'setFriendAddRequest' : 'setGroupAddRequest', {
+    e.reject = (reason = '') => callApi(requestMap.request_type === 'friend' ? 'setFriendAddRequest' : 'setGroupAddRequest', {
         flag: e.flag,
         approve: false,
         reason,
@@ -1523,7 +1498,7 @@ function buildEvent(data: IPCEventMessage['data'], msgId: string) {
   //  利用 AlemonJS 标准化字段生成最优 icqq 兼容事件
   // ══════════════════════════════════════════
   const isGroup = !data.isPrivate;
-  const userId = preserveId(data.userId, 10001);
+  const userId = safeInt(data.userId, 10001);
   const groupId = getCrossPlatformGroupId(data.spaceId, !isGroup);
 
   // 构建消息段：文本 + 跨平台 at 段 + 跨平台媒体附件
@@ -1950,9 +1925,7 @@ async function main(): Promise<void> {
 
   let botOnlineEmitted = false;
   const emitBotOnline = () => {
-    if (botOnlineEmitted) {
-      return;
-    }
+    if (botOnlineEmitted) { return; }
     botOnlineEmitted = true;
     try {
       (globalThis as any).Bot?.emit?.('online');
@@ -1971,17 +1944,16 @@ async function main(): Promise<void> {
             (globalThis as any).Bot.stat.recv_msg_cnt++;
           }
 
+          const e = buildEvent(msg.data, msg.id);
           let replied = false;
+          const origReply = e.reply;
+
+          e.reply = (m: any, q = false) => {
+            replied = true;
+
+            return origReply(m, q);
+          };
           try {
-            const e = buildEvent(msg.data, msg.id);
-            const origReply = e.reply;
-
-            e.reply = (m: any, q = false) => {
-              replied = true;
-
-              return origReply(m, q);
-            };
-
             // 拦截 Yunzai 内部的重启/关机/更新指令
             const rawMsg = String(e.msg ?? '').trim();
 
