@@ -75,7 +75,7 @@ test('shared group adapter preserves numeric OneBot group IDs', async () => {
 
 test('actual Worker message and notice builders retain the original group ID', () => {
   const source = readFileSync(new URL('../src/yunzai/worker.ts', import.meta.url), 'utf8');
-  const names = ['safeInt', 'isMessageEventName', 'resolveMasterFlag', 'buildFallbackNonMessageEvent', 'buildEvent'];
+  const names = ['safeInt', 'preserveId', 'isMessageEventName', 'resolveMasterFlag', 'buildFallbackNonMessageEvent', 'buildEvent'];
   const functions = names.map(name => {
     const match = source.match(new RegExp(String.raw`^function ${name}\b[\s\S]*?^}`, 'm'));
     assert.ok(match, name);
